@@ -1,6 +1,6 @@
-FROM maven:3.9.11-eclipse-temurin-17
+FROM maven:4.0.0-rc-7-eclipse-temurin-25-noble
 
-LABEL maintainer="Stephan Krusche <krusche@tum.de>"
+LABEL maintainer="Niklas Schmitz <nschmitz@techfak.de>"
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends gnupg && \
     rm -rf /var/lib/apt/lists/*

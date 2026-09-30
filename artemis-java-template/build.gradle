@@ -1,26 +1,37 @@
 plugins {
+    id "java"
     id "checkstyle"
     id "pmd"
     id "com.github.spotbugs" version "6.3.0"
     id "maven-publish"
-    id "com.teamscale" version "35.2.1"
-    id "org.openjfx.javafxplugin" version "0.1.0"
-    id "org.springframework.boot" version "3.5.4"
-    id "io.spring.dependency-management" version "1.1.7"
-    id "org.checkerframework" version "0.6.56"
+    // Weaves the Ares aspects into the student classes right after they are compiled
+    id "io.freefair.aspectj.post-compile-weaving" version "9.0.0"
 }
-
-apply plugin: "java"
-apply plugin: "org.checkerframework"
 
 repositories {
     mavenCentral()
     mavenLocal()
 }
 
+configurations {
+    // The Ares agent and the AspectJ runtime are handed to the test JVM as single JARs, without their dependencies
+    aresAgent {
+        transitive = false
+    }
+    aresBootClasspath {
+        transitive = false
+    }
+}
+
 dependencies {
-    testImplementation "de.tum.in.ase:artemis-java-test-sandbox:1.15.0"
-    testImplementation "net.bytebuddy:byte-buddy:1.17.6"
+    // Ares 2. Comes with JUnit and AssertJ.
+    testImplementation "de.tum.cit.ase:ares:${ares_version}"
+    // The aspects come from the Ares JAR, the project itself contains no .aj sources
+    aspect "de.tum.cit.ase:ares:${ares_version}"
+    implementation "org.aspectj:aspectjrt:${aspectj_version}"
+
+    aresAgent "de.tum.cit.ase:ares:${ares_version}:agent"
+    aresBootClasspath "org.aspectj:aspectjrt:${aspectj_version}"
 
     implementation "org.apache.commons:commons-lang3:${commons_lang3_version}"
 
@@ -28,15 +39,18 @@ dependencies {
 //    pmd "org.apache.commons:commons-lang3:${commons_lang3_version}"
     checkstyle "org.apache.commons:commons-lang3:${commons_lang3_version}"
     checkstyle "com.puppycrawl.tools:checkstyle:${checkstyle_version}"
+    // Declaring anything in this configuration replaces the default of the plugin, so SpotBugs itself has to be listed
+    spotbugs "com.github.spotbugs:spotbugs:${spotbugs_version}"
     spotbugs "org.apache.commons:commons-lang3:${commons_lang3_version}"
 }
 
 def assignmentSrcDir = "assignment/src"
-def studentOutputDir = sourceSets.main.java.destinationDirectory.get()
 def scaConfigDirectory = "$projectDir/staticCodeAnalysisConfig"
 
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release = 25
+}
 
 sourceSets {
     test {
@@ -58,34 +72,89 @@ sourceSets {
     }
 }
 
-def forbiddenPackageFolders = [ //(2)
-                                "$studentOutputDir/ch/qos/logback/",
-                                "$studentOutputDir/com/intellij/",
-                                "$studentOutputDir/com/sun/",
-                                "$studentOutputDir/de/tum/in/test/api/",
-                                "$studentOutputDir/java/",
-                                "$studentOutputDir/javax/",
-                                "$studentOutputDir/jdk/",
-                                "$studentOutputDir/net/jqwik/",
-                                "$studentOutputDir/org/assertj/",
-                                "$studentOutputDir/org/apache/",
-                                "$studentOutputDir/org/eclipse/",
-                                "$studentOutputDir/org/gradle/",
-                                "$studentOutputDir/org/jacoco/",
-                                "$studentOutputDir/org/json/",
-                                "$studentOutputDir/org/junit/",
-                                "$studentOutputDir/org/opentest4j/",
-                                "$studentOutputDir/sun/",
-                                "$studentOutputDir/worker/org/gradle/"
+// Ares reserved-package build boundary, version 2: student code must not declare classes in packages Ares trusts by
+// name. Copied verbatim from the snippet Ares ships under
+// de/tum/cit/ase/ares/api/configuration/reservedPackages/GradleReservedPackages.gradle.
+def aresReservedPackageBoundaryVersion = '2'
+def aresReservedPackagePatterns = [
+        'java/**', 'javax/**', 'sun/**', 'jdk/**', 'com/sun/**',
+        'de/tum/cit/ase/ares/api/**', 'net/bytebuddy/**', 'org/aspectj/**',
+        'com/ibm/wala/**', 'com/tngtech/archunit/**'
 ]
-test {
-    doFirst { //(1)
-        for (String packageFolder in forbiddenPackageFolders) {
-            assert !file(packageFolder).exists(): "$packageFolder must not exist within the submission."
+
+tasks.register('verifyAresReservedPackagesV2') {
+    dependsOn tasks.named('classes')
+    // Resolved at configuration time and declared as an input, so the task body
+    // touches no Project API and the build stays configuration-cache compatible.
+    def studentClassesDirs = sourceSets.main.output.classesDirs
+    def reservedPrefixes = aresReservedPackagePatterns.collect { it.substring(0, it.length() - 2) }
+    def boundaryVersion = aresReservedPackageBoundaryVersion
+    inputs.files(studentClassesDirs).withPropertyName('studentClasses')
+    doLast {
+        def forbidden = []
+        studentClassesDirs.files.each { root ->
+            if (!root.isDirectory()) {
+                return
+            }
+            def rootPath = root.toPath()
+            root.eachFileRecurse { candidate ->
+                if (!candidate.isFile()) {
+                    return
+                }
+                // Compared as a '/'-separated relative path, so the same prefixes
+                // apply on Windows as on Linux and macOS.
+                def relative = rootPath.relativize(candidate.toPath()).toString().replace(File.separator, '/')
+                if (reservedPrefixes.any { relative.startsWith(it) }) {
+                    forbidden << relative
+                }
+            }
+        }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException("Ares reserved-package validation ${boundaryVersion} " +
+                    "rejected student output: ${forbidden.sort()}. No bypass flag is supported.")
         }
     }
+}
+
+// Both hooks are required. `check` covers `gradlew check` and `gradlew build`;
+// the Test hook covers `gradlew test` and any custom Test task, which is what a
+// grading run actually invokes.
+tasks.named('check') { dependsOn tasks.named('verifyAresReservedPackagesV2') }
+tasks.withType(Test).configureEach { dependsOn tasks.named('verifyAresReservedPackagesV2') }
+
+test {
     defaultCharacterEncoding = "UTF-8"
     useJUnitPlatform()
+
+    // Attach the Ares agent and open the JDK internals Ares introspects
+    def aresAgentJar = configurations.aresAgent
+    def aresBootClasspathJar = configurations.aresBootClasspath
+    inputs.files(aresAgentJar, aresBootClasspathJar)
+    jvmArgumentProviders.add({
+        [
+                "-javaagent:${aresAgentJar.singleFile}",
+                "-Xbootclasspath/a:${aresBootClasspathJar.singleFile}"
+        ]
+    } as CommandLineArgumentProvider)
+    jvmArgs(
+            "--add-exports", "java.base/java.lang=ALL-UNNAMED",
+            "--add-exports", "java.base/jdk.internal.misc=ALL-UNNAMED",
+            "--add-opens", "java.base/java.io=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens", "java.base/java.net=ALL-UNNAMED",
+            "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+            "--add-opens", "java.base/java.nio.channels=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util.concurrent=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util.concurrent.locks=ALL-UNNAMED",
+            "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
+            "--add-opens", "java.base/sun.net.www.protocol.http=ALL-UNNAMED",
+            "--add-opens", "java.base/sun.net.www.protocol.https=ALL-UNNAMED",
+            "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+            "--add-opens", "jdk.unsupported/sun.misc=ALL-UNNAMED"
+    )
 }
 
 checkstyle {
@@ -140,4 +209,3 @@ publishing {
         }
     }
 }
-

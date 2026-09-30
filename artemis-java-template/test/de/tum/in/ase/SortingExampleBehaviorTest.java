@@ -7,28 +7,25 @@ import java.lang.reflect.InvocationTargetException;
 import java.text.*;
 import java.util.*;
 
-import static de.tum.in.test.api.util.ReflectionTestUtils.*;
+import static de.tum.cit.ase.ares.api.util.ReflectionTestUtils.*;
 
-import de.tum.in.test.api.BlacklistPath;
-import de.tum.in.test.api.PathType;
-import de.tum.in.test.api.StrictTimeout;
-import de.tum.in.test.api.WhitelistPath;
-import de.tum.in.test.api.jupiter.Public;
+import de.tum.cit.ase.ares.api.StrictTimeout;
+import de.tum.cit.ase.ares.api.jupiter.Public;
 
 /**
- * @author Stephan Krusche (krusche@in.tum.de)
- * @version 5.0 (11.11.2020)
+ * @author Stephan Krusche
+ * @version 5.1 (11.06.2021)
  */
-@WhitelistPath("target")
-@BlacklistPath(value = "**Test*.{java,class}", type = PathType.GLOB)
 @Public
-public class SortingExampleBehaviorTest {
+// fully qualified, because the assignment has its own de.tum.in.ase.Policy
+@de.tum.cit.ase.ares.api.Policy(value = "test/de/tum/in/ase/SecurityPolicy.yaml", withinPath = "classes/de/tum/in/ase")
+class SortingExampleBehaviorTest {
 
     private List<Date> dates;
     private List<Date> datesWithCorrectOrder;
 
     @BeforeEach
-    public void setup() throws ParseException {
+    void setup() throws ParseException {
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
         Date date1 = dateFormat.parse("08.11.2018");
         Date date2 = dateFormat.parse("15.04.2017");
@@ -41,7 +38,7 @@ public class SortingExampleBehaviorTest {
 
     @Test
     @StrictTimeout(1)
-    public void testBubbleSort() {
+    void testBubbleSort() {
         BubbleSort bubbleSort = new BubbleSort();
         bubbleSort.performSort(dates);
         if (!datesWithCorrectOrder.equals(dates)) {
@@ -51,7 +48,7 @@ public class SortingExampleBehaviorTest {
 
     @Test
     @StrictTimeout(1)
-    public void testMergeSort() {
+    void testMergeSort() {
         MergeSort mergeSort = new MergeSort();
         mergeSort.performSort(dates);
         if (!datesWithCorrectOrder.equals(dates)) {
@@ -61,7 +58,7 @@ public class SortingExampleBehaviorTest {
 
     @Test
     @StrictTimeout(1)
-    public void testUseMergeSortForBigList() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, InstantiationException, ClassNotFoundException {
+    void testUseMergeSortForBigList() throws ReflectiveOperationException {
         List<Date> bigList = new ArrayList<Date>();
         for (int i = 0; i < 11; i++) {
             bigList.add(new Date());
@@ -74,7 +71,7 @@ public class SortingExampleBehaviorTest {
 
     @Test
     @StrictTimeout(1)
-    public void testUseBubbleSortForSmallList()  throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, InstantiationException, ClassNotFoundException {
+    void testUseBubbleSortForSmallList()  throws ReflectiveOperationException {
         List<Date> smallList = new ArrayList<Date>();
         for (int i = 0; i < 3; i++) {
             smallList.add(new Date());
@@ -85,8 +82,7 @@ public class SortingExampleBehaviorTest {
         }
     }
 
-    private Object configurePolicyAndContext(List<Date> dates) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, InstantiationException, ClassNotFoundException {
-
+    private Object configurePolicyAndContext(List<Date> dates) throws ReflectiveOperationException {
         Object context = newInstance("de.tum.in.ase.Context");
         invokeMethod(context, getMethod(context, "setDates", List.class), dates);
 

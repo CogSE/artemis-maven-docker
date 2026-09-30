@@ -1,0 +1,27 @@
+thisPolicyFileCompliesToThePolicyVersion: 1
+regardingTheSupervisedCode:
+  theFollowingProgrammingLanguageConfigurationIsUsed: JAVA_USING_MAVEN_ARCHUNIT_AND_ASPECTJ
+  theSupervisedCodeUsesTheFollowingPackage: "de.tum.in.ase"
+  theMainClassInsideThisPackageIs: "Client"
+  # Exact fully qualified class names; a package name would not exempt anything.
+  theFollowingClassesAreTestClasses:
+    - "de.tum.in.ase.ClassTest"
+    - "de.tum.in.ase.MethodTest"
+    - "de.tum.in.ase.AttributeTest"
+    - "de.tum.in.ase.ConstructorTest"
+    - "de.tum.in.ase.SortingExampleBehaviorTest"
+  # The exercise needs no file, network, command or thread access. All six lists have to be present.
+  theFollowingResourceAccessesArePermitted:
+    regardingFileSystemInteractions: [ ]
+    regardingNetworkConnections: [ ]
+    regardingCommandExecutions: [ ]
+    # Not empty on purpose. With no entry at all, Ares statically rejects every call on its thread list, and
+    # that list contains ThreadLocalRandom.current(), which the Client class of the exercise template uses.
+    # An allowance of zero threads leaves the decision to the runtime layer, which still permits none.
+    regardingThreadCreations:
+      - createTheFollowingNumberOfThreads: 0
+        ofThisClass: "java.lang.Thread"
+    # The Client class of the exercise template uses org.apache.commons.lang3.RandomUtils.
+    regardingPackageImports:
+      - importTheFollowingPackage: "org.apache.commons.lang3"
+    regardingTimeouts: [ ]
