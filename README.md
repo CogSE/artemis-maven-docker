@@ -24,8 +24,3 @@ Docker Container for Docker Hub
 #### Example
 
 	docker buildx build --no-cache -t ls1tum/artemis-maven-template:java17-9 . --push --platform=linux/arm64,linux/amd64	
-
-#### Github Action
-
-Note that each commit will automatically lead to a new image on DockerHub using the `latest` tag.
-Creating a release (with a unique tag) will automatically create a new image on DockerHub using the tag name.
