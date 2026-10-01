@@ -4,10 +4,10 @@ Docker image for building and testing Java programming exercises in Artemis.
 
 This also includes git and replaces https://github.com/ls1intum/artemis-maven-git-docker.
 
-The image is based on `maven:4.0.0-rc-7-eclipse-temurin-25-noble` and contains:
+The image is based on `maven:3.9.16-eclipse-temurin-25-noble` and contains:
 
 - Java 25 (Eclipse Temurin) on Ubuntu 24.04
-- Maven 4.0.0-rc-7
+- Maven 3.9.16
 - Gradle 9.0.0, installed through the Gradle wrapper
 - git and gnupg
 - the dependencies of an Ares 2 exercise, already downloaded for Maven and for Gradle

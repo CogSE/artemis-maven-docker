@@ -1,4 +1,4 @@
-FROM maven:4.0.0-rc-7-eclipse-temurin-25-noble
+FROM maven:3.9.16-eclipse-temurin-25-noble
 
 LABEL maintainer="Niklas Schmitz <nschmitz@techfak.de>"
 
